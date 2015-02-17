@@ -113,3 +113,37 @@ def adadelta(loss, all_params, learning_rate=1.0, rho=0.95, epsilon=1e-6):
 
     return updates
 
+def adam(loss, all_params, learning_rate=0.0002, beta1=0.1, beta2=0.001, epsilon=1e-8, l_decay=1e-8):
+    """
+    Adam: A Method for Stochastic Optimization
+    Diederik P. Kingma, Jimmy Lei Ba
+    arXiv:1412.6980v2 [cs.LG] 17 Jan 2015
+    """
+    beta1_factor = theano.shared(np.dtype(theano.config.floatX).type((1-beta1)))
+    beta2_factor = theano.shared(np.dtype(theano.config.floatX).type((1-beta2)))
+    l_decay_factor = theano.shared(np.dtype(theano.config.floatX).type(1))
+
+    all_m = [theano.shared(np.zeros(param.get_value().shape, dtype=theano.config.floatX)) for param in all_params]
+    all_v = [theano.shared(np.zeros(param.get_value().shape, dtype=theano.config.floatX)) for param in all_params]
+
+    all_grads = theano.grad(loss, all_params)
+
+    updates = []
+
+    updates.append((l_decay_factor, l_decay*l_decay_factor))
+    updates.append((beta1_factor, (1-beta1)*beta1_factor))
+    updates.append((beta2_factor, (1-beta2)*beta2_factor))
+
+    beta1_t = 1-(1-beta1)*l_decay_factor
+
+    for param_i, grad_i, m_i, v_i in zip(all_params, all_grads, all_m, all_v):
+        m_i_new = beta1_t*grad_i + (1-beta1_t)*m_i
+        updates.append((m_i, m_i_new))
+
+        v_i_new = beta2*grad_i**2 + (1-beta2)*v_i
+        updates.append((v_i, v_i_new))
+
+        param_i_new = param_i - learning_rate*m_i_new/(1-beta1_factor)/(T.sqrt(v_i_new/(1-beta2_factor))+epsilon)
+        updates.append((param_i, param_i_new))
+
+    return updates
