@@ -12,6 +12,7 @@ __all__ = [
     "FeaturePoolLayer",
     "FeatureWTALayer",
     "GlobalPoolLayer",
+    "FractionalPool2DLayer",
 ]
 
 
@@ -148,3 +149,56 @@ class GlobalPoolLayer(Layer):
 
     def get_output_for(self, input, *args, **kwargs):
         return self.pool_function(input.flatten(3), axis=2)
+
+
+
+_srng = T.shared_randomstreams.RandomStreams()
+
+def shuffled(input):
+    n = input.shape[0]
+    shuffled = T.permute_row_elements(input.T, _srng.permutation(n=n)).T
+    return shuffled
+
+class FractionalPool2DLayer(Layer):    
+    def __init__(self, incoming, ds, pool_function=T.max, **kwargs):
+        super(FractionalPool2DLayer, self).__init__(incoming, **kwargs)
+        if type(ds) is not tuple:
+            raise ValueError("ds must be a tuple")
+        if (not 1<=ds[0]<=2) or (not 1<=ds[1]<=2):
+            raise ValueError("ds must be between 1 and 2")
+        self.ds = ds # a tuple
+        if len(self.input_shape) != 4:
+            raise ValueError("Only bc01 currently supported")
+        self.pool_function = pool_function
+
+    def get_output_shape_for(self, input_shape):
+        output_shape = list(input_shape) # copy / convert to mutable list
+        output_shape[2] = int(np.ceil(float(output_shape[2]) / self.ds[0]))
+        output_shape[3] = int(np.ceil(float(output_shape[3]) / self.ds[1]))
+
+        return tuple(output_shape)
+
+    def get_output_for(self, input, *args, **kwargs):
+        _, _, n_in0, n_in1 = self.input_shape
+        _, _, n_out0, n_out1 = self.get_output_shape()
+        
+        a = theano.shared(np.array([2]*(n_in0-n_out0)+[1]*(2*n_out0-n_in0)))
+        b = theano.shared(np.array([2]*(n_in1-n_out1)+[1]*(2*n_out1-n_in1)))
+
+        a = shuffled(a)
+        b = shuffled(b)
+        a = T.concatenate(([0],a[:-1]))
+        b = T.concatenate(([0],b[:-1]))
+        a = T.cumsum(a)
+        b = T.cumsum(b)
+        
+        a = T.repeat(a,4) + T.repeat([0,0,1,1], a.shape[0])
+        b = T.repeat(b,4) + T.repeat([0,1,0,1], b.shape[0])
+        a = T.clip(a, 0, n_in0-1)
+        b = T.clip(b, 0, n_in1-1)
+        
+        ys = T.repeat(a, n_out1)
+        xs = T.tile(b, (n_out0,))
+        
+        shape = self.get_output_shape()+(4,)
+        return self.pool_function(input[:,:,ys,xs].reshape(shape), axis=-1)        
