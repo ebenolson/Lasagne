@@ -185,8 +185,8 @@ class FractionalPool2DLayer(Layer):
         a = theano.shared(np.array([2]*(n_in0-n_out0)+[1]*(2*n_out0-n_in0)))
         b = theano.shared(np.array([2]*(n_in1-n_out1)+[1]*(2*n_out1-n_in1)))
 
-        a = tshuffle(a)
-        b = tshuffle(b)
+        a = shuffled(a)
+        b = shuffled(b)
         a = T.concatenate(([0],a[:-1]))
         b = T.concatenate(([0],b[:-1]))
         a = T.cumsum(a)
