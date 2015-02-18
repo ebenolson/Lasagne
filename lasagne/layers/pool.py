@@ -159,7 +159,7 @@ def shuffled(input):
     shuffled = T.permute_row_elements(input.T, _srng.permutation(n=n)).T
     return shuffled
 
-class FractionalPool2DLayer(Layer):    
+class FractionalPool2DLayer(Layer):
     def __init__(self, incoming, ds, pool_function=T.max, **kwargs):
         super(FractionalPool2DLayer, self).__init__(incoming, **kwargs)
         if type(ds) is not tuple:
@@ -181,24 +181,20 @@ class FractionalPool2DLayer(Layer):
     def get_output_for(self, input, *args, **kwargs):
         _, _, n_in0, n_in1 = self.input_shape
         _, _, n_out0, n_out1 = self.get_output_shape()
-        
+
         a = theano.shared(np.array([2]*(n_in0-n_out0)+[1]*(2*n_out0-n_in0)))
         b = theano.shared(np.array([2]*(n_in1-n_out1)+[1]*(2*n_out1-n_in1)))
 
-        a = shuffled(a)
-        b = shuffled(b)
+        a = tshuffle(a)
+        b = tshuffle(b)
         a = T.concatenate(([0],a[:-1]))
         b = T.concatenate(([0],b[:-1]))
         a = T.cumsum(a)
-        b = T.cumsum(b)
+        b = T.cumsum(b) 
+        c = T.clip(a+1, 0, n_in0-1)
+        d = T.clip(b+1, 0, n_in1-1)
         
-        a = T.repeat(a,4) + T.repeat([0,0,1,1], a.shape[0])
-        b = T.repeat(b,4) + T.repeat([0,1,0,1], b.shape[0])
-        a = T.clip(a, 0, n_in0-1)
-        b = T.clip(b, 0, n_in1-1)
+        temp = T.stack(input[:,:,a,:][:,:,:,b], input[:,:,c,:][:,:,:,b], 
+                       input[:,:,a,:][:,:,:,d], input[:,:,c,:][:,:,:,d])
         
-        ys = T.repeat(a, n_out1)
-        xs = T.tile(b, (n_out0,))
-        
-        shape = self.get_output_shape()+(4,)
-        return self.pool_function(input[:,:,ys,xs].reshape(shape), axis=-1)        
+        return self.pool_function(temp, axis=0)        
