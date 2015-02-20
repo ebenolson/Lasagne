@@ -25,6 +25,18 @@ class Normal(Initializer):
     def sample(self, shape):
         return floatX(np.random.normal(self.avg, self.std, size=shape))
 
+class SunNormal(Normal):
+    def __init__(self, std=None, avg=0.0):
+        self.std = std
+        self.avg = avg
+
+    def sample(self, shape):
+        if self.std is None:
+            n1, n2 = shape[:2]
+            receptive_field_size = np.prod(shape[2:])
+            self.std = np.sqrt(2.0 / (n1 * receptive_field_size))
+
+        return floatX(np.random.normal(self.avg, self.std, size=shape))
 
 class Constant(Initializer):
     def __init__(self, val=0.0):
