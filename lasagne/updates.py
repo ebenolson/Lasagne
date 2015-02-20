@@ -113,7 +113,7 @@ def adadelta(loss, all_params, learning_rate=1.0, rho=0.95, epsilon=1e-6):
 
     return updates
 
-def adam(loss, all_params, learning_rate=0.0002, beta1=0.1, beta2=0.001, epsilon=1e-8, l_decay=1e-8):
+def adam(loss, all_params, learning_rate=0.0002, beta1=0.1, beta2=0.001, epsilon=1e-8, l_decay=1-1e-3):
     """
     Adam: A Method for Stochastic Optimization
     Diederik P. Kingma, Jimmy Lei Ba
