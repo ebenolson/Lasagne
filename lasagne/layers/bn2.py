@@ -71,7 +71,7 @@ class BatchNormLayer2(Layer):
             np.ones(ema_shape, dtype=theano.config.floatX),
             borrow=True, broadcastable=ema_bc)
 
-        self.batch_cnt = theano.shared(0)
+        self.batch_cnt = theano.shared(np.dtype(theano.config.floatX).type(0))
 
     def get_params(self):
         return [self.gamma, self.beta]
@@ -91,12 +91,14 @@ class BatchNormLayer2(Layer):
         else:
             m = T.mean(input, self.axis, keepdims=True)
             v = T.sqrt(T.var(input, self.axis, keepdims=True) + self.epsilon)
+
+            new_batch_cnt = self.batch_cnt + 1
+            new_mean_ema = (self.mean_ema * self.batch_cnt + m) / new_batch_cnt
+            new_variance_ema = (self.variance_ema * self.batch_cnt + v) / new_batch_cnt
             self.additional_updates = [
-                # (self.mean_ema, self.mean_ema * 0.98 + m * 0.02),
-                # (self.variance_ema, self.variance_ema * 0.98 + m * 0.02)]
-                (self.mean_ema, self.mean_ema + m),
-                (self.variance_ema, self.variance_ema + v),
-                (self.batch_cnt, self.batch_cnt + 1)]
+                (self.mean_ema, new_mean_ema),
+                (self.variance_ema, new_variance_ema),
+                (self.batch_cnt, new_batch_cnt)]
 
         input_norm = (input - m) / v
         y = self.gamma * input_norm + self.beta
