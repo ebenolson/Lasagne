@@ -93,8 +93,8 @@ class BatchNormLayer2(Layer):
             v = T.sqrt(T.var(input, self.axis, keepdims=True) + self.epsilon)
 
             new_batch_cnt = self.batch_cnt + 1
-            new_mean_ema = (self.mean_ema * self.batch_cnt + m) / new_batch_cnt
-            new_variance_ema = (self.variance_ema * self.batch_cnt + v) / new_batch_cnt
+            new_mean_ema = 0.98*self.mean_ema + 0.02*m
+            new_variance_ema = 0.98*self.variance_ema + 0.02*v
             self.additional_updates = [
                 (self.mean_ema, new_mean_ema),
                 (self.variance_ema, new_variance_ema),
