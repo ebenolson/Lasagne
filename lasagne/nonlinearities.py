@@ -21,8 +21,8 @@ from theano.tensor import tanh
 def rectify(x):
     return (x + abs(x)) / 2.0
 
-def lrelu(x):
-    return (x + 0.9*abs(x)) / 1.9
+def lrelu(x, alpha=0.9):
+    return (x + alpha*abs(x)) / (1.+alpha)
 
 # linear
 def linear(x):
