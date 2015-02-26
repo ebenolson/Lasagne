@@ -83,9 +83,9 @@ class BatchNormLayer2(Layer):
     def get_output_shape_for(self, input_shape):
         return input_shape
 
-    def get_output_for(self, input, deterministic=False, *args, **kwargs):
+    def get_output_for(self, input, use_ema=False, *args, **kwargs):
 
-        if deterministic:
+        if use_ema:
             m = self.mean_ema
             v = self.variance_ema
         else:
