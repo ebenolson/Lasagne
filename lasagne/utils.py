@@ -36,10 +36,9 @@ def as_theano_expression(input):
         try:
             return theano.tensor.constant(input)
         except Exception as e:
-            raise TypeError("Input of type %s is not a Theano "
-                    "expression and cannot be wrapped as a Theano "
-                    "constant (original exception: %s)" %
-                    (type(input), e))
+            raise TypeError("Input of type %s is not a Theano expression and "
+                            "cannot be wrapped as a Theano constant (original "
+                            "exception: %s)" % (type(input), e))
 
 
 def one_hot(x, m=None):
@@ -69,51 +68,63 @@ def unique(l):
 
 def concatenate(tensor_list, axis=0):
     """
-    Alternative implementation of `theano.tensor.concatenate`.
-    This function does exactly the same thing, but contrary to Theano's own
-    implementation, the gradient is implemented on the GPU.
+    This function was used to work around a deficiency in Theano's
+    `theano.tensor.concatenate` (the inverse operation, splitting, was not
+    available on GPU). As of 2015-02-25, this deficiency has been removed,
+    so this workaround is not needed any longer and will be removed for
+    Lasagne's first release. Use `theano.tensor.concatenate` instead.
+    """
+    import warnings
+    warnings.warn("lasagne.utils.concatenate will be removed.\n"
+                  "Use theano.tensor.concatenate instead.")
+    return T.concatenate(tensor_list, axis)
 
-    Backpropagating through `theano.tensor.concatenate` yields slowdowns
-    because the inverse operation (splitting) needs to be done on the CPU.
-    This implementation does not have that problem.
 
-    :usage:
-        >>> x, y = theano.tensor.matrices('x', 'y')
-        >>> c = concatenate([x, y], axis=1)
+def compute_norms(array, norm_axes=None):
+    """
+    Compute incoming weight vector norms.
 
     :parameters:
-        - tensor_list : list
-            list of Theano tensor expressions that should be concatenated.
-        - axis : int
-            the tensors will be joined along this axis.
+        - array : ndarray
+            Weight array
+        - norm_axes : sequence (list or tuple)
+            The axes over which to compute the norm.  This overrides the
+            default norm axes defined for the number of dimensions
+            in `array`. When this is not specified and `array` is a 2D array,
+            this is set to `(0,)`. If `array` is a 3D, 4D or 5D array, it is
+            set to a tuple listing all axes but axis 0. The former default is
+            useful for working with dense layers, the latter is useful for 1D,
+            2D and 3D convolutional layers.
+            (Optional)
 
     :returns:
-        - out : tensor
-            the concatenated tensor expression.
+        - norms : 1D array
+            1D array of incoming weight vector norms.
+    :usage:
+        >>> array = np.random.randn(100, 200)
+        >>> norms = compute_norms(array)
+        >>> norms.shape
+        (200,)
+
+        >>> norms = compute_norms(array, norm_axes=(1,))
+        >>> norms.shape
+        (100,)
+
     """
-    if axis < 0:
-        axis += tensor_list[0].ndim
+    ndim = array.ndim
 
-    concat_size = sum(tensor.shape[axis] for tensor in tensor_list)
+    if norm_axes is not None:
+        sum_over = tuple(norm_axes)
+    elif ndim == 2:  # DenseLayer
+        sum_over = (0,)
+    elif ndim in [3, 4, 5]:  # Conv{1,2,3}DLayer
+        sum_over = tuple(range(1, ndim))
+    else:
+        raise ValueError(
+            "Unsupported tensor dimensionality {}."
+            "Must specify `norm_axes`".format(array.ndim)
+        )
 
-    output_shape = ()
-    for k in range(axis):
-        output_shape += (tensor_list[0].shape[k],)
-    output_shape += (concat_size,)
-    for k in range(axis + 1, tensor_list[0].ndim):
-        output_shape += (tensor_list[0].shape[k],)
+    norms = np.sqrt(np.sum(array**2, axis=sum_over))
 
-    out = T.zeros(output_shape)
-    offset = 0
-    for tensor in tensor_list:
-        indices = ()
-        for k in range(axis):
-            indices += (slice(None),)
-        indices += (slice(offset, offset + tensor.shape[axis]),)
-        for k in range(axis + 1, tensor_list[0].ndim):
-            indices += (slice(None),)
-
-        out = T.set_subtensor(out[indices], tensor)
-        offset += tensor.shape[axis]
-
-    return out
+    return norms
