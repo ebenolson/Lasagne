@@ -56,8 +56,9 @@ def get_pydot_graph(layers, output_shape=True, verbose=False):
         - output_shape: (default `True`)
             If `True`, the output shape of each layer will be displayed.
         - verbose: (default `False`)
-            If `True`, layer attributes like filter shape, stride, etc. will be displayed.
-        - verbose: 
+            If `True`, layer attributes like filter shape, stride, etc.
+            will be displayed.
+        - verbose:
     :returns:
         - pydot_graph : PyDot object containing the graph
 
