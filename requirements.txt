@@ -1,1 +1,1 @@
-Theano==0.7
+git+https://github.com/Theano/Theano.git@4dacb9e7d04d842d8ffe2c948dbc90722ae990d4#egg=Theano
