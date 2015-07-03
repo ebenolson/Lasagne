@@ -182,7 +182,7 @@ class MaxPool2DLayer(Layer):
     """
 
     def __init__(self, incoming, pool_size, stride=None,
-                 ignore_border=False, pad=(0, 0), **kwargs):
+                 ignore_border=False, pad=(0, 0), mode='max', **kwargs):
         super(MaxPool2DLayer, self).__init__(incoming, **kwargs)
 
         self.pool_size = as_tuple(pool_size, 2)
@@ -195,6 +195,7 @@ class MaxPool2DLayer(Layer):
         self.pad = as_tuple(pad, 2)
 
         self.ignore_border = ignore_border
+        self.mode = mode
 
     def get_output_shape_for(self, input_shape):
         output_shape = list(input_shape)  # copy / convert to mutable list
@@ -221,6 +222,7 @@ class MaxPool2DLayer(Layer):
                                         st=self.stride,
                                         ignore_border=self.ignore_border,
                                         padding=self.pad,
+                                        mode=self.mode,
                                         )
         return pooled
 
