@@ -161,14 +161,18 @@ class MaxPool2DLayer(Layer):
         The strides between sucessive pooling regions in each dimension.
         If ``None`` then ``stride = pool_size``.
 
+    ignore_border : bool
+        If ``True``, partial pooling regions will be ignored.
+        Must be ``True`` if ``pad != (0, 0)``.
+
     pad : integer or iterable
         Number of elements to be added on each side of the input
         in each dimension. Each value must be less than
         the corresponding stride.
 
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != (0, 0)``.
+    mode : string
+        Pooling mode, one of 'max', 'average_inc_pad' or 'average_exc_pad'.
+        Defaults to 'max'.
 
     **kwargs
         Any additional keyword arguments are passed to the :class:`Layer`
