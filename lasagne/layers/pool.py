@@ -141,11 +141,12 @@ class MaxPool1DLayer(Layer):
         return pooled[:, :, :, 0]
 
 
-class MaxPool2DLayer(Layer):
+class Pool2DLayer(Layer):
     """
-    2D max-pooling layer
+    2D pooling layer
 
-    Performs 2D max-pooling over the two trailing axes of a 4D input tensor.
+    Performs 2D mean or max-pooling over the two trailing axes
+    of a 4D input tensor.
 
     Parameters
     ----------
@@ -187,7 +188,7 @@ class MaxPool2DLayer(Layer):
 
     def __init__(self, incoming, pool_size, stride=None,
                  ignore_border=False, pad=(0, 0), mode='max', **kwargs):
-        super(MaxPool2DLayer, self).__init__(incoming, **kwargs)
+        super(Pool2DLayer, self).__init__(incoming, **kwargs)
 
         self.pool_size = as_tuple(pool_size, 2)
 
@@ -230,6 +231,17 @@ class MaxPool2DLayer(Layer):
                                         )
         return pooled
 
+
+class MaxPool2DLayer(Pool2DLayer):  # for consistency
+    def __init__(self, incoming, pool_size, stride=None,
+                 ignore_border=False, pad=(0, 0), mode='max', **kwargs):
+        super(MaxPool2DLayer, self).__init__(incoming,
+                                             pool_size,
+                                             stride,
+                                             ignore_border,
+                                             pad,
+                                             mode='max',
+                                             **kwargs)
 
 # TODO: add reshape-based implementation to MaxPool*DLayer
 # TODO: add MaxPool3DLayer
