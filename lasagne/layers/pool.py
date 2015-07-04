@@ -234,7 +234,7 @@ class Pool2DLayer(Layer):
 
 class MaxPool2DLayer(Pool2DLayer):  # for consistency
     def __init__(self, incoming, pool_size, stride=None,
-                 ignore_border=False, pad=(0, 0), mode='max', **kwargs):
+                 ignore_border=False, pad=(0, 0), **kwargs):
         super(MaxPool2DLayer, self).__init__(incoming,
                                              pool_size,
                                              stride,
