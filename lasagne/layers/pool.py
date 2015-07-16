@@ -9,6 +9,7 @@ from theano.tensor.signal import downsample
 __all__ = [
     "MaxPool1DLayer",
     "MaxPool2DLayer",
+    "Pool2DLayer",
     "FeaturePoolLayer",
     "FeatureWTALayer",
     "GlobalPoolLayer",
@@ -171,13 +172,17 @@ class Pool2DLayer(Layer):
         in each dimension. Each value must be less than
         the corresponding stride.
 
-    mode : string
-        Pooling mode, one of 'max', 'average_inc_pad' or 'average_exc_pad'.
-        Defaults to 'max'.
+    mode : {'max', 'average_inc_pad', 'average_exc_pad'}
+        Pooling mode: max-pooling or mean-pooling including/excluding zeros
+        from partially padded pooling regions. Default is 'max'.
 
     **kwargs
         Any additional keyword arguments are passed to the :class:`Layer`
         superclass.
+
+    See Also
+    --------
+    MaxPool2DLayer : Shortcut for max pooling layer.
 
     Notes
     -----
@@ -232,7 +237,38 @@ class Pool2DLayer(Layer):
         return pooled
 
 
-class MaxPool2DLayer(Pool2DLayer):  # for consistency
+class MaxPool2DLayer(Pool2DLayer):
+    """
+    2D max-pooling layer
+    Performs 2D max-pooling over the two trailing axes of a 4D input tensor.
+    Parameters
+    ----------
+    incoming : a :class:`Layer` instance or tuple
+        The layer feeding into this layer, or the expected input shape.
+    pool_size : integer or iterable
+        The length of the pooling region in each dimension.  If an integer, it
+        is promoted to a square pooling region. If an iterable, it should have
+        two elements.
+    stride : integer, iterable or ``None``
+        The strides between sucessive pooling regions in each dimension.
+        If ``None`` then ``stride = pool_size``.
+    pad : integer or iterable
+        Number of elements to be added on each side of the input
+        in each dimension. Each value must be less than
+        the corresponding stride.
+    ignore_border : bool
+        If ``True``, partial pooling regions will be ignored.
+        Must be ``True`` if ``pad != (0, 0)``.
+    **kwargs
+        Any additional keyword arguments are passed to the :class:`Layer`
+        superclass.
+    Notes
+    -----
+    The value used to pad the input is chosen to be less than
+    the minimum of the input, so that the output of each pooling region
+    always corresponds to some element in the unpadded input region.
+    """
+
     def __init__(self, incoming, pool_size, stride=None,
                  ignore_border=False, pad=(0, 0), **kwargs):
         super(MaxPool2DLayer, self).__init__(incoming,
