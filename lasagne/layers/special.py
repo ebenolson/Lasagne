@@ -34,32 +34,25 @@ class LambdaLayer(Layer):
         Specifies the output shape of this layer. If a tuple, this fixes the
         output shape for any input shape (the tuple can contain None if some
         dimensions may vary). If a callable, it should return the calculated
-        output shape given the input shape. If None, will attempt to determine
-        the output shape by applying the specified function.
+        output shape given the input shape. If None, the output shape is
+        assumed to be the same as the input shape.
     """
     def __init__(self, incoming, function, output_shape=None, **kwargs):
         super(LambdaLayer, self).__init__(incoming, **kwargs)
 
-        if output_shape is None:
-            self._output_shape_memo = {}
-        else:
+        if output_shape is not None:
             if hasattr(output_shape, '__call__'):
                 self.get_output_shape_for = output_shape
             else:
-                self.get_output_shape_for = lambda _: tuple(output_shape)
+                self._output_shape = tuple(output_shape)
 
         self.function = function
 
     def get_output_shape_for(self, input_shape):
         try:
-            return self._output_shape_memo[input_shape]
-        except KeyError:
-            X = theano.shared(floatX(np.empty(
-                [x if x is not None else 0 for x in input_shape])))
-            output_shape = self.function(X).shape.eval()
-            output_shape = tuple(x if x else None for x in output_shape)
-            self._output_shape_memo[input_shape] = output_shape
-            return output_shape
+            return self._output_shape
+        except AttributeError:
+            return input_shape
 
     def get_output_for(self, input, **kwargs):
         return self.function(input)
