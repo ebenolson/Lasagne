@@ -4,6 +4,73 @@ import pytest
 import theano
 
 
+class TestFunctionLayer:
+    @pytest.fixture
+    def FunctionLayer(self):
+        from lasagne.layers.special import FunctionLayer
+        return FunctionLayer
+
+    @pytest.fixture
+    def input_layer(self):
+        from lasagne.layers import InputLayer
+        return InputLayer((2, 3, 4, 5))
+
+    def np_result(self, func, input_layer):
+        X = np.random.uniform(-1, 1, input_layer.output_shape)
+        return X, func(X)
+
+    @pytest.mark.parametrize('func',
+                             [lambda X: X**2,
+                              lambda X: X.mean(-1),
+                              lambda X: X.sum(),
+                              ])
+    def test_tuple_shape(self, func, input_layer, FunctionLayer):
+        from lasagne.layers.helper import get_output
+
+        X, expected = self.np_result(func, input_layer)
+        layer = FunctionLayer(input_layer, func, output_shape=expected.shape)
+        assert layer.get_output_shape_for(X.shape) == expected.shape
+
+        output = get_output(layer, X).eval()
+        assert np.allclose(output, expected)
+
+    @pytest.mark.parametrize('func',
+                             [lambda X: X**2,
+                              lambda X: X.mean(-1),
+                              lambda X: X.sum(),
+                              ])
+    def test_callable_shape(self, func, input_layer, FunctionLayer):
+        from lasagne.layers.helper import get_output
+
+        X, expected = self.np_result(func, input_layer)
+
+        def get_shape(input_shape):
+            return func(np.empty(shape=input_shape)).shape
+
+        layer = FunctionLayer(input_layer, func, output_shape=get_shape)
+        assert layer.get_output_shape_for(X.shape) == expected.shape
+
+        output = get_output(layer, X).eval()
+        assert np.allclose(output, expected)
+
+    @pytest.mark.parametrize('func',
+                             [lambda X: X**2,
+                              lambda X: X.mean(-1),
+                              lambda X: X.sum(),
+                              ])
+    def test_none_shape(self, func, input_layer, FunctionLayer):
+        from lasagne.layers.helper import get_output
+
+        X, expected = self.np_result(func, input_layer)
+
+        layer = FunctionLayer(input_layer, func, output_shape=None)
+        if X.shape == expected.shape:
+            assert layer.get_output_shape_for(X.shape) == expected.shape
+
+        output = get_output(layer, X).eval()
+        assert np.allclose(output, expected)
+
+
 class TestNonlinearityLayer:
     @pytest.fixture
     def NonlinearityLayer(self):
