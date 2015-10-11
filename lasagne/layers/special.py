@@ -9,7 +9,7 @@ from .base import Layer, MergeLayer
 
 
 __all__ = [
-    "LambdaLayer",
+    "FunctionLayer",
     "NonlinearityLayer",
     "BiasLayer",
     "InverseLayer",
@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 
-class LambdaLayer(Layer):
+class FunctionLayer(Layer):
     """
     This layer provides boilerplate for a custom layer that applies a
     simple transformation to the input.
@@ -38,7 +38,7 @@ class LambdaLayer(Layer):
         assumed to be the same as the input shape.
     """
     def __init__(self, incoming, function, output_shape=None, **kwargs):
-        super(LambdaLayer, self).__init__(incoming, **kwargs)
+        super(FunctionLayer, self).__init__(incoming, **kwargs)
 
         if output_shape is not None:
             if hasattr(output_shape, '__call__'):
