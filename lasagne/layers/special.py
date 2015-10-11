@@ -30,18 +30,21 @@ class FunctionLayer(Layer):
     function : callable
         A function to be applied to the output of the previous layer.
 
-    output_shape : None, callable, or tuple
+    output_shape : None, callable, tuple, or 'auto'
         Specifies the output shape of this layer. If a tuple, this fixes the
         output shape for any input shape (the tuple can contain None if some
         dimensions may vary). If a callable, it should return the calculated
         output shape given the input shape. If None, the output shape is
-        assumed to be the same as the input shape.
+        assumed to be the same as the input shape. If 'auto', an attempt will
+        be made to automatically infer the correct output shape.
     """
     def __init__(self, incoming, function, output_shape=None, **kwargs):
         super(FunctionLayer, self).__init__(incoming, **kwargs)
 
         if output_shape is not None:
-            if hasattr(output_shape, '__call__'):
+            if output_shape == 'auto':
+                self._output_shape = 'auto'
+            elif hasattr(output_shape, '__call__'):
                 self.get_output_shape_for = output_shape
             else:
                 self._output_shape = tuple(output_shape)
@@ -50,7 +53,12 @@ class FunctionLayer(Layer):
 
     def get_output_shape_for(self, input_shape):
         try:
-            return self._output_shape
+            output_shape = self._output_shape
+            if output_shape == 'auto':
+                input_shape = (0 if s is None else s for s in input_shape)
+                X = theano.tensor.alloc(0, *input_shape)
+                output_shape = tuple(self.function(X).shape.eval())
+            return output_shape
         except AttributeError:
             return input_shape
 

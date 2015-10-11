@@ -70,6 +70,22 @@ class TestFunctionLayer:
         output = get_output(layer, X).eval()
         assert np.allclose(output, expected)
 
+    @pytest.mark.parametrize('func',
+                             [lambda X: X**2,
+                              lambda X: X.mean(-1),
+                              lambda X: X.sum(),
+                              ])
+    def test_auto_shape(self, func, input_layer, FunctionLayer):
+        from lasagne.layers.helper import get_output
+
+        X, expected = self.np_result(func, input_layer)
+
+        layer = FunctionLayer(input_layer, func, output_shape='auto')
+        assert layer.get_output_shape_for(X.shape) == expected.shape
+
+        output = get_output(layer, X).eval()
+        assert np.allclose(output, expected)
+
 
 class TestNonlinearityLayer:
     @pytest.fixture
