@@ -1,10 +1,9 @@
 import theano
 import theano.tensor as T
-import numpy as np
 
 from .. import init
 from .. import nonlinearities
-from ..utils import as_tuple, floatX
+from ..utils import as_tuple
 from .base import Layer, MergeLayer
 
 
