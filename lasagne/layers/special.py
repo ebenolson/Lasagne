@@ -9,7 +9,7 @@ from .base import Layer, MergeLayer
 
 
 __all__ = [
-    "FunctionLayer",
+    "ExpressionLayer",
     "NonlinearityLayer",
     "BiasLayer",
     "InverseLayer",
@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 
-class FunctionLayer(Layer):
+class ExpressionLayer(Layer):
     """
     This layer provides boilerplate for a custom layer that applies a
     simple transformation to the input.
@@ -39,7 +39,7 @@ class FunctionLayer(Layer):
         be made to automatically infer the correct output shape.
     """
     def __init__(self, incoming, function, output_shape=None, **kwargs):
-        super(FunctionLayer, self).__init__(incoming, **kwargs)
+        super(ExpressionLayer, self).__init__(incoming, **kwargs)
 
         if output_shape is not None:
             if output_shape == 'auto':
@@ -57,7 +57,9 @@ class FunctionLayer(Layer):
             if output_shape == 'auto':
                 input_shape = (0 if s is None else s for s in input_shape)
                 X = theano.tensor.alloc(0, *input_shape)
-                output_shape = tuple(self.function(X).shape.eval())
+#                output_shape = tuple(self.function(X).shape.eval())
+                output_shape = self.function(X).shape.eval()
+                output_shape = tuple(s if s else None for s in output_shape)
             return output_shape
         except AttributeError:
             return input_shape
