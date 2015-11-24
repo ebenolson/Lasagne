@@ -1,4 +1,5 @@
 import theano
+import theano.tensor as T
 from theano.sandbox.cuda import dnn
 
 from .. import init
@@ -14,6 +15,7 @@ if not theano.config.device.startswith("gpu") or not dnn.dnn_available():
 
 
 __all__ = [
+    "UpsampleConv2DDNNLayer",
     "Pool2DDNNLayer",
     "MaxPool2DDNNLayer",
     "Conv2DDNNLayer",
@@ -21,8 +23,112 @@ __all__ = [
 ]
 
 
+def deconv_length(output_length, filter_size, stride, pad=0):
+    if output_length is None:
+        return None
+
+    output_length = output_length * stride
+    if pad == 'valid':
+        input_length = output_length + filter_size - 1
+    elif pad == 'full':
+        input_length = output_length - filter_size + 1
+    elif pad == 'same':
+        input_length = output_length
+    elif isinstance(pad, int):
+        input_length = output_length - 2 * pad + filter_size - 1
+    else:
+        raise ValueError('Invalid pad: {0}'.format(pad))
+
+    return input_length
+
+
 class DNNLayer(Layer):
     pass
+
+
+class UpsampleConv2DDNNLayer(DNNLayer):
+    def __init__(self, incoming, num_filters, filter_size, stride=(2, 2),
+                 pad=0, untie_biases=False, W=init.GlorotUniform(),
+                 b=init.Constant(0.), nonlinearity=nonlinearities.rectify,
+                 flip_filters=False, **kwargs):
+        super(UpsampleConv2DDNNLayer, self).__init__(incoming, **kwargs)
+        if nonlinearity is None:
+            self.nonlinearity = nonlinearities.identity
+        else:
+            self.nonlinearity = nonlinearity
+
+        self.num_filters = num_filters
+        self.filter_size = as_tuple(filter_size, 2)
+        self.stride = as_tuple(stride, 2)
+        self.untie_biases = untie_biases
+        self.flip_filters = flip_filters
+
+        if pad == 'valid':
+            self.pad = (0, 0)
+        elif pad == 'full':
+            self.pad = 'full'
+        elif pad == 'same':
+            if any(s % 2 == 0 for s in self.filter_size):
+                raise NotImplementedError(
+                    '`same` padding requires odd filter size.')
+            self.pad = (self.filter_size[0] // 2, self.filter_size[1] // 2)
+        else:
+            self.pad = as_tuple(pad, 2, int)
+
+        self.W = self.add_param(W, self.get_W_shape(), name="W")
+        if b is None:
+            self.b = None
+        else:
+            if self.untie_biases:
+                biases_shape = (num_filters, self.output_shape[2],
+                                self.output_shape[3])
+            else:
+                biases_shape = (num_filters,)
+            self.b = self.add_param(b, biases_shape, name="b",
+                                    regularizable=False)
+
+    def get_W_shape(self):
+        num_input_channels = self.input_shape[1]
+        return (num_input_channels, self.num_filters, self.filter_size[0],
+                self.filter_size[1])
+
+    def get_output_shape_for(self, input_shape):
+        batch_size = input_shape[0]
+        pad = self.pad if isinstance(self.pad, tuple) else (self.pad,) * 2
+
+        output_rows = deconv_length(input_shape[2],
+                                    self.filter_size[0],
+                                    self.stride[0],
+                                    pad[0])
+
+        output_columns = deconv_length(input_shape[3],
+                                       self.filter_size[1],
+                                       self.stride[1],
+                                       pad[1])
+
+        return (batch_size, self.num_filters, output_rows, output_columns)
+
+    def get_output_for(self, input, **kwargs):
+        # by default we assume 'cross', consistent with corrmm.
+        conv_mode = 'conv' if self.flip_filters else 'cross'
+
+        image = T.alloc(0., *self.output_shape)
+        conved = dnn.dnn_conv(img=image,
+                              kerns=self.W,
+                              subsample=self.stride,
+                              border_mode=self.pad,
+                              conv_mode=conv_mode
+                              )
+
+        grad = T.grad(conved.sum(), wrt=image, known_grads={conved: input})
+
+        if self.b is None:
+            activation = grad
+        elif self.untie_biases:
+            activation = grad + self.b.dimshuffle('x', 0, 1, 2)
+        else:
+            activation = grad + self.b.dimshuffle('x', 0, 'x', 'x')
+        return self.nonlinearity(activation)
 
 
 class Pool2DDNNLayer(DNNLayer):
