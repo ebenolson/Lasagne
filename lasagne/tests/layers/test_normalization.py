@@ -2,8 +2,10 @@
 
 """
 
-This file contains code from pylearn2, which is covered by the following
-license:
+The :func:`ground_truth_normalizer()`, :func:`ground_truth_normalize_row` and
+:class:`TestLocalResponseNormalization2DLayer` implementations contain code
+from `pylearn2 <http://github.com/lisa-lab/pylearn2>`_, which is covered
+by the following license:
 
 
 Copyright (c) 2011--2014, Université de Montréal
@@ -36,11 +38,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 
+from mock import Mock
 import numpy as np
 import pytest
 import theano
-
-import lasagne
 
 
 def ground_truth_normalizer(c01b, k, n, alpha, beta):
@@ -125,8 +126,9 @@ class TestLocalResponseNormalization2DLayer:
             LocalResponseNormalization2DLayer(input_layer, n=4)
 
     def test_normalization(self, input_data, input_layer, layer):
+        from lasagne.layers import get_output
         X = input_layer.input_var
-        lrn = theano.function([X], lasagne.layers.get_output(layer, X))
+        lrn = theano.function([X], get_output(layer, X))
         out = lrn(input_data)
 
         # ground_truth_normalizer assumes c01b
@@ -140,3 +142,117 @@ class TestLocalResponseNormalization2DLayer:
         assert out.shape == ground_out.shape
 
         assert np.allclose(out, ground_out)
+
+
+class TestBatchNormLayer:
+    @pytest.fixture
+    def BatchNormLayer(self):
+        from lasagne.layers.normalization import BatchNormLayer
+        return BatchNormLayer
+
+    @pytest.fixture
+    def init_unique(self):
+        # initializer for a tensor of unique values
+        return lambda shape: np.arange(np.prod(shape)).reshape(shape)
+
+    def test_init(self, BatchNormLayer, init_unique):
+        input_shape = (2, 3, 4)
+        # default: normalize over all but second axis
+        beta = BatchNormLayer(input_shape, beta=init_unique).beta
+        assert np.allclose(beta.get_value(), init_unique((3,)))
+        # normalize over first axis only
+        beta = BatchNormLayer(input_shape, beta=init_unique, axes=0).beta
+        assert np.allclose(beta.get_value(), init_unique((3, 4)))
+        # normalize over second and third axis
+        beta = BatchNormLayer(input_shape, beta=init_unique, axes=(1, 2)).beta
+        assert np.allclose(beta.get_value(), init_unique((2,)))
+
+    @pytest.mark.parametrize('update_averages', [None, True, False])
+    @pytest.mark.parametrize('use_averages', [None, True, False])
+    @pytest.mark.parametrize('deterministic', [True, False])
+    def test_get_output_for(self, BatchNormLayer, deterministic, use_averages,
+                            update_averages):
+        input_shape = (20, 30, 40)
+
+        # random input tensor, beta, gamma, mean, var and alpha
+        input = (np.random.randn(*input_shape).astype(theano.config.floatX) +
+                 np.random.randn(1, 30, 1).astype(theano.config.floatX))
+        beta = np.random.randn(30).astype(theano.config.floatX)
+        gamma = np.random.randn(30).astype(theano.config.floatX)
+        mean = np.random.randn(30).astype(theano.config.floatX)
+        var = np.random.rand(30).astype(theano.config.floatX)
+        alpha = np.random.rand()
+
+        # create layer (with default axes: normalize over all but second axis)
+        layer = BatchNormLayer(input_shape, beta=beta, gamma=gamma, mean=mean,
+                               var=var, alpha=alpha)
+
+        # call get_output_for()
+        kwargs = {'deterministic': deterministic}
+        if use_averages is not None:
+            kwargs['batch_norm_use_averages'] = use_averages
+        else:
+            use_averages = deterministic
+        if update_averages is not None:
+            kwargs['batch_norm_update_averages'] = update_averages
+        else:
+            update_averages = not deterministic
+        result = layer.get_output_for(theano.tensor.constant(input),
+                                      **kwargs).eval()
+
+        # compute expected results and expected updated parameters
+        input_mean = input.mean(axis=(0, 2))
+        input_var = input.var(axis=(0, 2))
+        if use_averages:
+            use_mean, use_var = mean, var
+        else:
+            use_mean, use_var = input_mean, input_var
+        use_std = np.sqrt(use_var + layer.epsilon)
+        exp_result = (input - use_mean[None, :, None]) / use_std[None, :, None]
+        exp_result = exp_result * gamma[None, :, None] + beta[None, :, None]
+        if update_averages:
+            new_mean = (1 - alpha) * mean + alpha * input_mean
+            new_var = (1 - alpha) * var + alpha * input_var
+        else:
+            new_mean, new_var = mean, var
+
+        # compare expected results to actual results
+        tol = {'atol': 1e-5, 'rtol': 1e-6}
+        assert np.allclose(layer.mean.get_value(), new_mean, **tol)
+        assert np.allclose(layer.var.get_value(), new_var, **tol)
+        assert np.allclose(result, exp_result, **tol)
+
+    def test_undefined_shape(self, BatchNormLayer):
+        # should work:
+        BatchNormLayer((64, None, 3), axes=(1, 2))
+        # should not work:
+        with pytest.raises(ValueError) as exc:
+            BatchNormLayer((64, None, 3), axes=(0, 2))
+        assert 'needs specified input sizes' in exc.value.args[0]
+
+
+def test_batch_norm_makro():
+    from lasagne.layers import Layer, BatchNormLayer, batch_norm
+    from lasagne.nonlinearities import identity
+    input_shape = (2, 3)
+    obj = object()
+
+    # check if it steals the nonlinearity
+    layer = Mock(Layer, output_shape=input_shape, nonlinearity=obj)
+    bnlayer = batch_norm(layer)
+    assert isinstance(bnlayer, BatchNormLayer)
+    assert layer.nonlinearity is identity
+    assert bnlayer.nonlinearity is obj
+
+    # check if it removes the bias
+    layer = Mock(Layer, output_shape=input_shape, b=obj, params={obj: set()})
+    bnlayer = batch_norm(layer)
+    assert isinstance(bnlayer, BatchNormLayer)
+    assert layer.b is None
+    assert obj not in layer.params
+
+    # check if it passes on kwargs
+    layer = Mock(Layer, output_shape=input_shape)
+    bnlayer = batch_norm(layer, name='foo')
+    assert isinstance(bnlayer, BatchNormLayer)
+    assert bnlayer.name == 'foo'
