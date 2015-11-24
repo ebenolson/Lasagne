@@ -87,9 +87,9 @@ class Conv2DCCLayer(CCLayer):
         is equivalent to computing the convolution wherever the input and the
         filter overlap by at least one position.
 
-        ``'same'`` pads with half the filter size on both sides (one less on
-        the second side for an even filter size). When ``stride=1``, this
-        results in an output size equal to the input size.
+        ``'same'`` pads with half the filter size (rounded down) on both sides.
+        When ``stride=1`` this results in an output size equal to the input
+        size. Even filter size is not supported.
 
         ``'valid'`` is an alias for ``0`` (no padding / a valid convolution).
 
@@ -105,21 +105,21 @@ class Conv2DCCLayer(CCLayer):
         position in each channel. As a result, the `b` attribute will be a
         3D tensor.
 
-    W : Theano shared variable, numpy array or callable
-        An initializer for the weights of the layer. This should initialize the
-        layer weights to a 4D array with shape
+    W : Theano shared variable, expression, numpy array or callable
+        Initial value, expression or initializer for the weights.
+        These should be a 4D tensor with shape
         ``(num_filters, num_input_channels, filter_rows, filter_columns)``.
         If automatic dimshuffling is disabled (see notes), the shape should be
         ``(num_input_channels, input_rows, input_columns, num_filters)``
-        instead (c01b axis order). See :func:`lasagne.utils.create_param` for
-        more information.
+        instead (c01b axis order).
+        See :func:`lasagne.utils.create_param` for more information.
 
-    b : Theano shared variable, numpy array, callable or None
-        An initializer for the biases of the layer. If None is provided, the
-        layer will have no biases. This should initialize the layer biases to
+    b : Theano shared variable, expression, numpy array, callable or ``None``
+        Initial value, expression or initializer for the biases. If set to
+        ``None``, the layer will have no biases. Otherwise, biases should be
         a 1D array with shape ``(num_filters,)`` if `untied_biases` is set to
         ``False``. If it is set to ``True``, its shape should be
-        ``(num_filters, input_rows, input_columns)`` instead.
+        ``(num_filters, output_rows, output_columns)`` instead.
         See :func:`lasagne.utils.create_param` for more information.
 
     nonlinearity : callable or None
@@ -165,11 +165,11 @@ class Conv2DCCLayer(CCLayer):
 
     Attributes
     ----------
-    W : Theano shared variable
-        Variable representing the filter weights.
+    W : Theano shared variable or expression
+        Variable or expression representing the filter weights.
 
-    b : Theano shared variable
-        Variable representing the biases.
+    b : Theano shared variable or expression
+        Variable or expression representing the biases.
 
     Notes
     -----
@@ -249,9 +249,10 @@ class Conv2DCCLayer(CCLayer):
         elif pad == 'full':
             self.pad = self.filter_size - 1
         elif pad == 'same':
-            # only works for odd filter size, but the even filter size case
-            # is probably not worth supporting.
-            self.pad = (self.filter_size - 1) // 2
+            if self.filter_size % 2 == 0:
+                raise NotImplementedError(
+                    '`same` padding requires odd filter size.')
+            self.pad = self.filter_size // 2
         else:
             pad = as_tuple(pad, 2, int)
             if pad[0] != pad[1]:

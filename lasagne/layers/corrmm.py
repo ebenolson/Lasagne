@@ -73,9 +73,9 @@ class Conv2DMMLayer(MMLayer):
         is equivalent to computing the convolution wherever the input and the
         filter overlap by at least one position.
 
-        ``'same'`` pads with half the filter size on both sides (one less on
-        the second side for an even filter size). When ``stride=1``, this
-        results in an output size equal to the input size.
+        ``'same'`` pads with half the filter size (rounded down) on both sides.
+        When ``stride=1`` this results in an output size equal to the input
+        size. Even filter size is not supported.
 
         ``'valid'`` is an alias for ``0`` (no padding / a valid convolution).
 
@@ -91,18 +91,18 @@ class Conv2DMMLayer(MMLayer):
         position in each channel. As a result, the `b` attribute will be a
         3D tensor.
 
-    W : Theano shared variable, numpy array or callable
-        An initializer for the weights of the layer. This should initialize the
-        layer weights to a 4D array with shape
+    W : Theano shared variable, expression, numpy array or callable
+        Initial value, expression or initializer for the weights.
+        These should be a 4D tensor with shape
         ``(num_filters, num_input_channels, filter_rows, filter_columns)``.
         See :func:`lasagne.utils.create_param` for more information.
 
-    b : Theano shared variable, numpy array, callable or None
-        An initializer for the biases of the layer. If None is provided, the
-        layer will have no biases. This should initialize the layer biases to
+    b : Theano shared variable, expression, numpy array, callable or ``None``
+        Initial value, expression or initializer for the biases. If set to
+        ``None``, the layer will have no biases. Otherwise, biases should be
         a 1D array with shape ``(num_filters,)`` if `untied_biases` is set to
         ``False``. If it is set to ``True``, its shape should be
-        ``(num_filters, input_rows, input_columns)`` instead.
+        ``(num_filters, output_rows, output_columns)`` instead.
         See :func:`lasagne.utils.create_param` for more information.
 
     nonlinearity : callable or None
@@ -155,10 +155,10 @@ class Conv2DMMLayer(MMLayer):
         elif pad == 'full':
             self.pad = (self.filter_size[0] - 1, self.filter_size[1] - 1)
         elif pad == 'same':
-            # only works for odd filter size, but the even filter size case
-            # is probably not worth supporting.
-            self.pad = ((self.filter_size[0] - 1) // 2,
-                        (self.filter_size[1] - 1) // 2)
+            if any(s % 2 == 0 for s in self.filter_size):
+                raise NotImplementedError(
+                    '`same` padding requires odd filter size.')
+            self.pad = (self.filter_size[0] // 2, self.filter_size[1] // 2)
         else:
             self.pad = as_tuple(pad, 2, int)
 
